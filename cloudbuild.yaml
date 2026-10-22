@@ -47,3 +47,6 @@ steps:
             exit(1)
 
         print("Success: index.html verified successfully.")
+
+options:
+  logging: CLOUD_LOGGING_ONLY
