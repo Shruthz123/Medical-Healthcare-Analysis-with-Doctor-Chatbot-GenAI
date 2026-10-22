@@ -1,0 +1,49 @@
+steps:
+  - name: 'python:3.12-slim'
+    entrypoint: 'python3'
+    args:
+      - '-c'
+      - |
+        import os
+        from html.parser import HTMLParser
+
+        class Validator(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.title = ""
+                self.disclaimer_found = False
+                self.in_title = False
+                self.disclaimer_text = "This is a demo interface only. No AI or backend is connected."
+
+            def handle_starttag(self, tag, attrs):
+                if tag == 'title':
+                    self.in_title = True
+
+            def handle_endtag(self, tag):
+                if tag == 'title':
+                    self.in_title = False
+
+            def handle_data(self, data):
+                if self.in_title:
+                    self.title += data
+                if self.disclaimer_text in data:
+                    self.disclaimer_found = True
+
+        if not os.path.exists('index.html'):
+            print("Error: index.html not found.")
+            exit(1)
+
+        with open('index.html', 'r') as f:
+            content = f.read()
+            parser = Validator()
+            parser.feed(content)
+
+        if not parser.title.strip():
+            print("Error: Title is empty.")
+            exit(1)
+        
+        if not parser.disclaimer_found:
+            print("Error: Disclaimer text not found in index.html.")
+            exit(1)
+
+        print("Success: index.html verified successfully.")
