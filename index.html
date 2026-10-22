@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Chatbot Demo</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; max-width: 600px; margin: 20px auto; padding: 0 20px; }
+        #chat-container { border: 1px solid #ccc; padding: 20px; border-radius: 8px; }
+        #messages { height: 300px; overflow-y: auto; border: 1px solid #eee; margin-bottom: 10px; padding: 10px; background: #f9f9f9; }
+        .disclaimer { font-size: 0.85em; color: #d9534f; background: #fdf7f7; padding: 10px; border: 1px solid #d9534f; margin-bottom: 15px; }
+        .input-area { display: flex; gap: 10px; }
+        input { flex-grow: 1; padding: 8px; }
+        .prompts { margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap; }
+        button { padding: 8px 12px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="chat-container">
+        <h2>Medical Chatbot Demo</h2>
+        <div class="disclaimer">
+            <strong>Notice:</strong> This is a demo interface only. No AI or backend is connected. 
+            This tool is not for medical advice, diagnosis, or emergencies. If you have a medical emergency, please contact local emergency services immediately.
+        </div>
+        
+        <div id="messages"></div>
+        
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Type your message here..." aria-label="Chat input">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+
+        <div class="prompts">
+            <button onclick="setPrompt('How do I book an appointment?')">Book appointment</button>
+            <button onclick="setPrompt('What are the clinic hours?')">Clinic hours</button>
+            <button onclick="setPrompt('How can I contact the clinic?')">Contact info</button>
+        </div>
+    </div>
+
+    <script>
+        function setPrompt(text) {
+            document.getElementById('userInput').value = text;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('userInput');
+            const messages = document.getElementById('messages');
+            if (!input.value.trim()) return;
+
+            // Display user message
+            const userDiv = document.createElement('div');
+            userDiv.textContent = "You: " + input.value;
+            messages.appendChild(userDiv);
+
+            // Display demo notice
+            const botDiv = document.createElement('div');
+            botDiv.style.color = "blue";
+            botDiv.textContent = "Bot: This is a demo interface. No backend is connected, and no data is being processed.";
+            messages.appendChild(botDiv);
+
+            input.value = '';
+            messages.scrollTop = messages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
