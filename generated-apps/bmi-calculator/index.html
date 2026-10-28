@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Calculate your adult Body Mass Index (BMI) in metric or imperial units. All calculations happen in your browser.">
+  <title>BMI Calculator</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1>BMI Calculator</h1>
+      <p class="intro">Enter your height and weight to calculate your Body Mass Index (BMI) and see the matching adult health category.</p>
+    </div>
+  </header>
+
+  <main id="main" class="container">
+    <noscript>
+      <p class="noscript">This calculator needs JavaScript to work. Please enable JavaScript in your browser and reload the page.</p>
+    </noscript>
+
+    <section class="card" aria-labelledby="calc-heading">
+      <h2 id="calc-heading" class="section-heading">Your measurements</h2>
+
+      <form id="bmi-form" novalidate autocomplete="off">
+        <fieldset class="unit-selector">
+          <legend>Units</legend>
+          <div class="unit-options">
+            <label class="unit-option">
+              <input type="radio" name="unit" value="metric" checked>
+              <span>Metric (cm, kg)</span>
+            </label>
+            <label class="unit-option">
+              <input type="radio" name="unit" value="imperial">
+              <span>Imperial (ft, in, lb)</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Metric fields (default) -->
+        <div id="metric-fields" class="unit-fields">
+          <div class="field">
+            <label for="height-cm">Height (cm)</label>
+            <p id="height-cm-hint" class="hint">Between 100 and 250 cm.</p>
+            <input id="height-cm" name="height-cm" type="text" inputmode="decimal"
+                   autocomplete="off" spellcheck="false" aria-describedby="height-cm-hint">
+            <p id="height-cm-error" class="field-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="weight-kg">Weight (kg)</label>
+            <p id="weight-kg-hint" class="hint">Between 20 and 300 kg.</p>
+            <input id="weight-kg" name="weight-kg" type="text" inputmode="decimal"
+                   autocomplete="off" spellcheck="false" aria-describedby="weight-kg-hint">
+            <p id="weight-kg-error" class="field-error" hidden></p>
+          </div>
+        </div>
+
+        <!-- Imperial fields -->
+        <div id="imperial-fields" class="unit-fields" hidden>
+          <fieldset class="height-group">
+            <legend>Height</legend>
+            <div class="inline-fields">
+              <div class="field">
+                <label for="height-ft">Feet (ft)</label>
+                <p id="height-ft-hint" class="hint">Whole number, 3 to 8.</p>
+                <input id="height-ft" name="height-ft" type="text" inputmode="numeric"
+                       autocomplete="off" spellcheck="false" aria-describedby="height-ft-hint">
+                <p id="height-ft-error" class="field-error" hidden></p>
+              </div>
+
+              <div class="field">
+                <label for="height-in">Inches (in)</label>
+                <p id="height-in-hint" class="hint">0 to 11.9 (optional).</p>
+                <input id="height-in" name="height-in" type="text" inputmode="decimal"
+                       autocomplete="off" spellcheck="false" aria-describedby="height-in-hint">
+                <p id="height-in-error" class="field-error" hidden></p>
+              </div>
+            </div>
+            <p id="height-imperial-error" class="field-error" hidden></p>
+          </fieldset>
+
+          <div class="field">
+            <label for="weight-lb">Weight (lb)</label>
+            <p id="weight-lb-hint" class="hint">Between 44 and 660 lb.</p>
+            <input id="weight-lb" name="weight-lb" type="text" inputmode="decimal"
+                   autocomplete="off" spellcheck="false" aria-describedby="weight-lb-hint">
+            <p id="weight-lb-error" class="field-error" hidden></p>
+          </div>
+        </div>
+
+        <button type="submit" class="calculate-button">Calculate</button>
+      </form>
+    </section>
+
+    <!-- Result region: polite live region, populated with text-only DOM APIs -->
+    <div id="result" class="result" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <aside class="disclaimer" aria-labelledby="disclaimer-heading">
+      <h2 id="disclaimer-heading" class="disclaimer-heading">Important information</h2>
+      <p>BMI is a screening estimate for adults (18 and over) only. It does not account for muscle mass, age, sex or pregnancy, so it may not reflect your individual health.</p>
+      <p>This page does not provide medical advice. For advice about your health or weight, please consult a qualified healthcare professional.</p>
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Privacy: your entries are processed only in this browser. Nothing is sent over the network, stored or logged.</p>
+    </div>
+  </footer>
+</body>
+</html>
