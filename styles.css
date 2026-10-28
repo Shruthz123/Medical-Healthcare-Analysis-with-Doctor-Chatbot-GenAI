@@ -59,6 +59,69 @@ button {
 
 .bot-reply { color: blue; }
 
+/* Theme toggle */
+#themeToggle {
+    margin-bottom: 10px;
+}
+
+#themeToggle:focus-visible {
+    outline: 3px solid #005fcc;
+    outline-offset: 2px;
+}
+
+/* Dark theme (applied when <body> has the "dark-mode" class) */
+body.dark-mode {
+    background: #121212;
+    color: #e8e8e8;
+}
+
+body.dark-mode #chat-container {
+    background: #1e1e1e;
+    color: #e8e8e8;
+    border-color: #444;
+}
+
+body.dark-mode #messages {
+    background: #2a2a2a;
+    color: #e8e8e8;
+    border-color: #3a3a3a;
+}
+
+body.dark-mode .disclaimer {
+    color: #ff9b97;
+    background: #3a1f1f;
+    border-color: #e06c68;
+}
+
+body.dark-mode .bot-reply {
+    color: #8ab4f8;
+}
+
+body.dark-mode input {
+    background: #2a2a2a;
+    color: #e8e8e8;
+    border: 1px solid #666;
+}
+
+body.dark-mode input::placeholder {
+    color: #b0b0b0;
+}
+
+body.dark-mode button {
+    background: #333;
+    color: #e8e8e8;
+    border: 1px solid #666;
+}
+
+body.dark-mode button:hover {
+    background: #444;
+}
+
+body.dark-mode #themeToggle:focus-visible {
+    outline: 3px solid #ffd166;
+    outline-offset: 2px;
+}
+
 @media (max-width: 480px) {
     .input-area {
         flex-direction: column;
