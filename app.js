@@ -1,3 +1,5 @@
+const THEME_STORAGE_KEY = 'theme';
+
 function setPrompt(text) {
     document.getElementById('userInput').value = text;
 }
@@ -20,4 +22,51 @@ function sendMessage() {
 
     input.value = '';
     messages.scrollTop = messages.scrollHeight;
+}
+
+// Apply the given theme ("light" or "dark") to the page and update the toggle.
+function applyTheme(theme) {
+    const isDark = theme === 'dark';
+    document.body.classList.toggle('dark-mode', isDark);
+
+    const toggle = document.getElementById('themeToggle');
+    if (toggle) {
+        toggle.textContent = isDark ? 'Light mode' : 'Dark mode';
+        toggle.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+    }
+}
+
+// Read the saved theme; returns "light", "dark", or null if unavailable/invalid.
+function loadSavedTheme() {
+    try {
+        const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+        return (saved === 'dark' || saved === 'light') ? saved : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Persist the theme; silently ignores storage failures.
+function saveTheme(theme) {
+    try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (e) {
+        // Storage unavailable: theme still applies for this session.
+    }
+}
+
+function toggleTheme() {
+    const nextTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
+    applyTheme(nextTheme);
+    saveTheme(nextTheme);
+}
+
+function initTheme() {
+    applyTheme(loadSavedTheme() || 'light');
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTheme);
+} else {
+    initTheme();
 }
