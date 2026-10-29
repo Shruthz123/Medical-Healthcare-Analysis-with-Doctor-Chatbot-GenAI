@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!--
+    Privacy hardening: block all network connections (fetch/XHR/WebSocket/beacon)
+    and all form submissions. Script/style sources are intentionally not
+    restricted so the app keeps working when opened via file://.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Book a clinic appointment. Appointments are stored only on this device and browser.">
+  <title>Clinic Appointment Booking</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="site-title">Clinic Appointment Booking</h1>
+    </div>
+  </header>
+
+  <main id="main" class="container main-content">
+    <p class="notice notice--privacy">Appointments are stored only on this device and browser.</p>
+
+    <p id="storage-warning" class="notice notice--warning" role="alert" hidden></p>
+
+    <noscript>
+      <p class="notice notice--warning">This app needs JavaScript to book and display appointments. Please enable JavaScript and reload the page.</p>
+    </noscript>
+
+    <section class="card" aria-labelledby="booking-heading">
+      <h2 id="booking-heading" class="card-title">Book an appointment</h2>
+      <p class="form-intro">All fields are required.</p>
+
+      <form id="booking-form" class="booking-form" novalidate>
+        <div class="field">
+          <label for="name" class="field-label">Name</label>
+          <input
+            id="name"
+            name="name"
+            type="text"
+            class="field-input"
+            autocomplete="name"
+            required
+            aria-required="true"
+            aria-describedby="name-error">
+          <p id="name-error" class="field-error"></p>
+        </div>
+
+        <div class="field">
+          <label for="phone" class="field-label">Phone</label>
+          <p id="phone-hint" class="field-hint">Use digits, spaces, +, -, ( and ). Must contain 7 to 15 digits.</p>
+          <input
+            id="phone"
+            name="phone"
+            type="tel"
+            class="field-input"
+            autocomplete="tel"
+            inputmode="tel"
+            required
+            aria-required="true"
+            aria-describedby="phone-hint phone-error">
+          <p id="phone-error" class="field-error"></p>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="date" class="field-label">Date</label>
+            <input
+              id="date"
+              name="date"
+              type="date"
+              class="field-input"
+              required
+              aria-required="true"
+              aria-describedby="date-error">
+            <p id="date-error" class="field-error"></p>
+          </div>
+
+          <div class="field">
+            <label for="time" class="field-label">Time</label>
+            <input
+              id="time"
+              name="time"
+              type="time"
+              class="field-input"
+              required
+              aria-required="true"
+              aria-describedby="time-error">
+            <p id="time-error" class="field-error"></p>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn--primary">Book appointment</button>
+        </div>
+
+        <div id="form-message" class="message" role="status" aria-live="polite" aria-atomic="true"></div>
+      </form>
+    </section>
+
+    <section class="card" aria-labelledby="list-heading">
+      <h2 id="list-heading" class="card-title" tabindex="-1">Booked appointments</h2>
+
+      <div id="list-message" class="message" role="status" aria-live="polite" aria-atomic="true"></div>
+
+      <p id="empty-message" class="empty-message">No appointments booked.</p>
+      <ul id="appointment-list" class="appointment-list" hidden></ul>
+    </section>
+  </main>
+</body>
+</html>
