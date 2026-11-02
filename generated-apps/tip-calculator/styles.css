@@ -1,0 +1,302 @@
+/* Tip Calculator styles
+   Mobile-first, system fonts only, no external resources.
+   Colour pairs chosen for >= 4.5:1 contrast:
+   - #1a1a1a on #ffffff  (~17.4:1)
+   - #444444 on #ffffff  (~9.7:1)
+   - #0b4f99 on #ffffff  (~8.2:1)
+   - #ffffff on #0b4f99  (~8.2:1)
+   - #b00020 on #ffffff  (~7.4:1)
+   - #5f5f5f on #ffffff  (~6.4:1, placeholder)
+*/
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #eef1f5;
+  color: #1a1a1a;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* ---------- Layout ---------- */
+
+.calculator {
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1rem;
+  background: #ffffff;
+}
+
+h1 {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+#tip-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ---------- Fields ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+label,
+legend {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+input {
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0;
+  /* 2px border; the invalid state uses a 3px border and removes 1px of
+     padding on each side so the field does not change size. */
+  padding: 0.5rem 0.75rem;
+  border: 2px solid #444444;
+  border-radius: 0.375rem;
+  background: #ffffff;
+  color: #1a1a1a;
+  font: inherit;
+  font-size: 1rem; /* >= 16px prevents iOS zoom on focus */
+}
+
+input::placeholder {
+  color: #5f5f5f;
+  opacity: 1;
+}
+
+input:hover {
+  border-color: #1a1a1a;
+}
+
+/* Invalid inputs: red border plus a thicker width (not colour alone). */
+input[aria-invalid="true"] {
+  border: 3px solid #b00020;
+  padding: calc(0.5rem - 1px) calc(0.75rem - 1px);
+}
+
+.error-message {
+  margin: 0;
+  color: #b00020;
+  background: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* ---------- Tip presets ---------- */
+
+.tip-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem 0.75rem 1rem;
+  border: 1px solid #767676;
+  border-radius: 0.5rem;
+}
+
+.tip-group legend {
+  padding: 0 0.25rem;
+}
+
+.tip-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.tip-preset {
+  min-height: 2.75rem;
+  padding: 0.5rem;
+  border: 2px solid #0b4f99;
+  border-radius: 0.375rem;
+  background: #ffffff;
+  color: #0b4f99;
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tip-preset:hover {
+  background: #e3edf8; /* #0b4f99 on #e3edf8 is ~7.0:1 */
+}
+
+/* Selected preset: different background, bold border and a check mark,
+   so the state is not conveyed by colour alone. */
+.tip-preset[aria-pressed="true"],
+.tip-preset.is-selected {
+  border: 3px solid #062a52;
+  background: #0b4f99;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.tip-preset[aria-pressed="true"]::before,
+.tip-preset.is-selected::before {
+  content: "✓ ";
+}
+
+.tip-preset[aria-pressed="true"]:hover,
+.tip-preset.is-selected:hover {
+  background: #093f7a;
+}
+
+/* ---------- Results ---------- */
+
+.results {
+  padding: 1rem;
+  border: 1px solid #767676;
+  border-radius: 0.5rem;
+  background: #f7f9fc; /* #1a1a1a on #f7f9fc is ~16.5:1 */
+}
+
+.results dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.results dt {
+  color: #1a1a1a;
+}
+
+.results dd {
+  margin: 0;
+}
+
+.result-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-weight: 700;
+  font-size: 1.125rem;
+  text-align: right;
+  color: #1a1a1a;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Reset ---------- */
+
+.reset-btn {
+  min-height: 2.75rem;
+  padding: 0.5rem 1.25rem;
+  border: 2px solid #1a1a1a;
+  border-radius: 0.375rem;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.reset-btn:hover {
+  background: #e9e9e9; /* #1a1a1a on #e9e9e9 is ~14.4:1 */
+}
+
+/* ---------- Focus (visible, >= 2px) ---------- */
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #ffd54f;
+}
+
+/* Fallback for browsers without :focus-visible support */
+@supports not selector(:focus-visible) {
+  button:focus,
+  input:focus {
+    outline: 3px solid #1a1a1a;
+    outline-offset: 2px;
+  }
+}
+
+/* ---------- Larger screens ---------- */
+
+@media (min-width: 30rem) {
+  .calculator {
+    margin: 2rem auto;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  h1 {
+    font-size: 1.75rem;
+  }
+
+  .tip-presets {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .reset-btn {
+    align-self: flex-start;
+  }
+}
+
+/* ---------- User preferences ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .tip-preset,
+  .reset-btn,
+  input {
+    transition: background-color 0.12s ease, border-color 0.12s ease;
+  }
+}
+
+@media (forced-colors: active) {
+  .tip-preset[aria-pressed="true"],
+  .tip-preset.is-selected {
+    border: 3px solid Highlight;
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+
+  input[aria-invalid="true"] {
+    border-style: dashed;
+  }
+
+  button:focus-visible,
+  input:focus-visible {
+    outline-color: Highlight;
+  }
+}
