@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tip Calculator</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="calculator">
+    <h1>Tip Calculator</h1>
+
+    <form id="tip-form" novalidate>
+      <div class="field">
+        <label for="bill">Bill amount</label>
+        <input id="bill" name="bill" type="text" inputmode="decimal" autocomplete="off" aria-describedby="bill-error">
+        <p id="bill-error" class="error-message" hidden></p>
+      </div>
+
+      <fieldset class="tip-group">
+        <legend>Tip percentage</legend>
+        <div class="tip-presets">
+          <button type="button" class="tip-preset" data-tip="10" aria-pressed="false">10%</button>
+          <button type="button" class="tip-preset is-selected" data-tip="15" aria-pressed="true">15%</button>
+          <button type="button" class="tip-preset" data-tip="18" aria-pressed="false">18%</button>
+          <button type="button" class="tip-preset" data-tip="20" aria-pressed="false">20%</button>
+        </div>
+
+        <div class="field">
+          <label for="custom-tip">Custom tip %</label>
+          <input id="custom-tip" name="custom-tip" type="text" inputmode="decimal" autocomplete="off" placeholder="0–100" aria-describedby="custom-tip-error">
+          <p id="custom-tip-error" class="error-message" hidden></p>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label for="people">Number of people</label>
+        <input id="people" name="people" type="text" inputmode="numeric" autocomplete="off" value="1" aria-describedby="people-error">
+        <p id="people-error" class="error-message" hidden></p>
+      </div>
+
+      <section id="results" class="results" aria-live="polite" aria-labelledby="results-heading">
+        <h2 id="results-heading">Results</h2>
+        <dl>
+          <dt>Tip amount</dt>
+          <dd id="result-tip" class="result-value">0.00</dd>
+          <dt>Total</dt>
+          <dd id="result-total" class="result-value">0.00</dd>
+          <dt>Tip per person</dt>
+          <dd id="result-tip-per-person" class="result-value">0.00</dd>
+          <dt>Total per person</dt>
+          <dd id="result-total-per-person" class="result-value">0.00</dd>
+        </dl>
+      </section>
+
+      <button type="button" id="reset-btn" class="reset-btn">Reset</button>
+    </form>
+  </main>
+</body>
+</html>
