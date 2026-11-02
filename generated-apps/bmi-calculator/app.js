@@ -1,573 +1,525 @@
 /*
- * BMI Calculator
+ * BMI Calculator - behaviour and pure logic.
  *
- * Structure:
- *   1. Pure functions (no DOM access): parsing, validation, unit conversion,
- *      BMI calculation, rounding, categorisation and advice text.
- *   2. DOM layer: unit switching, error rendering and result rendering.
- *
- * Privacy: nothing is sent over the network, stored or logged.
- * Security: user input is never inserted as HTML; only textContent /
- *           text nodes are used for output.
- *
- * In Node.js the pure functions are exported via module.exports so they can be
- * verified independently (see tests/bmi.test.js).
+ * - Pure functions (no DOM access) are exported on window.BmiCalculator
+ *   and via module.exports, so they can be tested apart from the page.
+ * - DOM wiring runs only when a document exists.
+ * - No network, no storage, no eval, no innerHTML: all text is written
+ *   with textContent.
  */
-(function (root) {
+(function () {
   'use strict';
 
-  /* =====================================================================
-   * 1. PURE FUNCTIONS
-   * ===================================================================== */
+  // ---------------------------------------------------------------------
+  // Constants
+  // ---------------------------------------------------------------------
 
-  const CM_PER_INCH = 2.54;
-  const KG_PER_POUND = 0.45359237;
-  const INCHES_PER_FOOT = 12;
+  var DECIMAL_RE = /^\d+(\.\d+)?$|^\.\d+$/;
+  var NEGATIVE_DECIMAL_RE = /^-(\d+(\.\d+)?|\.\d+)$/;
+  var WHOLE_RE = /^\d+$/;
 
-  const LIMITS = Object.freeze({
-    heightCm: Object.freeze({ min: 100, max: 250 }),
-    weightKg: Object.freeze({ min: 20, max: 300 }),
-    feet: Object.freeze({ min: 3, max: 8 }),
-    inches: Object.freeze({ min: 0, max: 11.9 }),
-    pounds: Object.freeze({ min: 44, max: 660 })
-  });
+  var MESSAGES = {
+    emptyHeightCm: 'Please enter your height in centimetres.',
+    emptyWeightKg: 'Please enter your weight in kilograms.',
+    emptyFeet: 'Please enter feet.',
+    emptyInches: 'Please enter inches (use 0 if none).',
+    emptyPounds: 'Please enter your weight in pounds.',
+    notNumber: 'Please enter a number.',
+    feetWhole: 'Feet must be a whole number.',
+    notPositive: 'Value must be greater than zero.',
+    inchesRange: 'Inches must be at least 0 and less than 12.',
+    cmRange: 'Height must be between 50 and 300 cm.',
+    kgRange: 'Weight must be between 2 and 650 kg.',
+    lbRange: 'Weight must be between 4.4 and 1433 lb.',
+    totalHeightRange: 'Total height must be between 1 ft 8 in and 9 ft 10 in.'
+  };
 
-  const MESSAGES = Object.freeze({
-    heightCm: Object.freeze({
-      empty: 'Enter your height in centimetres.',
-      invalid: 'Height must be a number, for example 170.',
-      range: 'Height must be between 100 and 250 cm.'
-    }),
-    weightKg: Object.freeze({
-      empty: 'Enter your weight in kilograms.',
-      invalid: 'Weight must be a number, for example 65.',
-      range: 'Weight must be between 20 and 300 kg.'
-    }),
-    feet: Object.freeze({
-      empty: 'Enter the feet part of your height.',
-      invalid: 'Feet must be a whole number, for example 5.',
-      range: 'Feet must be a whole number between 3 and 8.'
-    }),
-    inches: Object.freeze({
-      empty: '',
-      invalid: 'Inches must be a number, for example 9.',
-      range: 'Inches must be between 0 and 11.9.'
-    }),
-    heightTotal: 'Total height must be between 100 and 250 cm (about 3 ft 3.4 in to 8 ft 2.4 in).',
-    pounds: Object.freeze({
-      empty: 'Enter your weight in pounds.',
-      invalid: 'Weight must be a number, for example 150.',
-      range: 'Weight must be between 44 and 660 lb.'
-    })
-  });
+  var RANGES = {
+    cmMin: 50,
+    cmMax: 300,
+    kgMin: 2,
+    kgMax: 650,
+    lbMin: 4.4,
+    lbMax: 1433,
+    totalInchesMin: 20, // 1 ft 8 in
+    totalInchesMax: 118 // 9 ft 10 in
+  };
 
-  const CATEGORIES = Object.freeze({
-    underweight: Object.freeze({
-      key: 'underweight',
-      name: 'Underweight',
-      range: 'Below 18.5',
-      advice: 'Your BMI is below the healthy range for adults. Being underweight can sometimes be linked to nutritional or other health issues. Consider talking to a healthcare professional, such as your doctor, about your weight and diet.'
-    }),
-    normal: Object.freeze({
-      key: 'normal',
-      name: 'Normal weight',
-      range: '18.5 to 24.9',
-      advice: 'Your BMI is within the healthy range for adults. A balanced diet, regular physical activity and good sleep can help you maintain it.'
-    }),
-    overweight: Object.freeze({
-      key: 'overweight',
-      name: 'Overweight',
-      range: '25.0 to 29.9',
-      advice: 'Your BMI is above the healthy range for adults. Small, sustainable changes to diet and activity can help. Consider consulting a healthcare professional for personalised guidance.'
-    }),
-    obese: Object.freeze({
-      key: 'obese',
-      name: 'Obese',
-      range: '30.0 and above',
-      advice: 'Your BMI is in the obese range for adults, which is associated with a higher risk of some health conditions. Please consider consulting a healthcare professional, who can help you explore safe and effective options.'
-    })
-  });
+  var CATEGORY_KEYS = {
+    'Underweight': 'underweight',
+    'Normal weight': 'normal',
+    'Overweight': 'overweight',
+    'Obese': 'obese'
+  };
 
-  // Plain decimal numbers only: optional sign, digits, optional fraction.
-  // Rejects "", "abc", "12abc", "1e2", "Infinity", "1,5", etc.
-  const NUMBER_PATTERN = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
+  // ---------------------------------------------------------------------
+  // Pure calculation functions
+  // ---------------------------------------------------------------------
 
   /**
-   * Parse a raw input string.
-   * @param {*} raw
-   * @returns {{status: 'empty'|'invalid'|'ok', value: number|null}}
+   * Metric BMI = kg / (m)^2 where m = cm / 100.
+   * @param {number} heightCm
+   * @param {number} weightKg
+   * @returns {number}
    */
-  function parseNumber(raw) {
-    const text = raw === null || raw === undefined ? '' : String(raw).trim();
+  function calculateBmiMetric(heightCm, weightKg) {
+    var meters = heightCm / 100;
+    return weightKg / (meters * meters);
+  }
+
+  /**
+   * Imperial BMI = 703 * lb / (total inches)^2.
+   * @param {number} feet
+   * @param {number} inches
+   * @param {number} pounds
+   * @returns {number}
+   */
+  function calculateBmiImperial(feet, inches, pounds) {
+    var totalInches = feet * 12 + inches;
+    return (703 * pounds) / (totalInches * totalInches);
+  }
+
+  /**
+   * Round a BMI to one decimal place.
+   * @param {number} bmi
+   * @returns {number}
+   */
+  function roundBmi(bmi) {
+    return Math.round(bmi * 10) / 10;
+  }
+
+  /**
+   * WHO adult category for an already-rounded BMI.
+   * @param {number} roundedBmi
+   * @returns {"Underweight"|"Normal weight"|"Overweight"|"Obese"}
+   */
+  function getBmiCategory(roundedBmi) {
+    if (roundedBmi < 18.5) {
+      return 'Underweight';
+    }
+    if (roundedBmi < 25.0) {
+      return 'Normal weight';
+    }
+    if (roundedBmi < 30.0) {
+      return 'Overweight';
+    }
+    return 'Obese';
+  }
+
+  /**
+   * Machine-friendly key for a category label.
+   * @param {string} category
+   * @returns {"underweight"|"normal"|"overweight"|"obese"|""}
+   */
+  function categoryKey(category) {
+    return Object.prototype.hasOwnProperty.call(CATEGORY_KEYS, category)
+      ? CATEGORY_KEYS[category]
+      : '';
+  }
+
+  // ---------------------------------------------------------------------
+  // Pure validation helpers
+  // ---------------------------------------------------------------------
+
+  function toTrimmedString(raw) {
+    if (raw === null || raw === undefined) {
+      return '';
+    }
+    return String(raw).trim();
+  }
+
+  /**
+   * Parse a strictly positive decimal within [min, max].
+   * Returns {error: string} or {value: number}.
+   */
+  function parsePositiveDecimalInRange(raw, emptyMessage, min, max, rangeMessage) {
+    var text = toTrimmedString(raw);
     if (text === '') {
-      return { status: 'empty', value: null };
+      return { error: emptyMessage };
     }
-    if (!NUMBER_PATTERN.test(text)) {
-      return { status: 'invalid', value: null };
+    if (NEGATIVE_DECIMAL_RE.test(text)) {
+      return { error: MESSAGES.notPositive };
     }
-    const value = Number(text);
-    if (!Number.isFinite(value)) {
-      return { status: 'invalid', value: null };
+    if (!DECIMAL_RE.test(text)) {
+      return { error: MESSAGES.notNumber };
     }
-    return { status: 'ok', value: value };
+    var value = parseFloat(text);
+    if (!isFinite(value)) {
+      return { error: MESSAGES.notNumber };
+    }
+    if (value <= 0) {
+      return { error: MESSAGES.notPositive };
+    }
+    if (value < min || value > max) {
+      return { error: rangeMessage };
+    }
+    return { value: value };
   }
+
+  /** Feet: whole number greater than zero. */
+  function parseFeet(raw) {
+    var text = toTrimmedString(raw);
+    if (text === '') {
+      return { error: MESSAGES.emptyFeet };
+    }
+    if (NEGATIVE_DECIMAL_RE.test(text)) {
+      return { error: MESSAGES.notPositive };
+    }
+    if (!DECIMAL_RE.test(text)) {
+      return { error: MESSAGES.notNumber };
+    }
+    if (!WHOLE_RE.test(text)) {
+      return { error: MESSAGES.feetWhole };
+    }
+    var value = parseInt(text, 10);
+    if (!isFinite(value)) {
+      return { error: MESSAGES.notNumber };
+    }
+    if (value <= 0) {
+      return { error: MESSAGES.notPositive };
+    }
+    return { value: value };
+  }
+
+  /** Inches: decimal, at least 0 and less than 12. */
+  function parseInches(raw) {
+    var text = toTrimmedString(raw);
+    if (text === '') {
+      return { error: MESSAGES.emptyInches };
+    }
+    if (NEGATIVE_DECIMAL_RE.test(text)) {
+      return { error: MESSAGES.inchesRange };
+    }
+    if (!DECIMAL_RE.test(text)) {
+      return { error: MESSAGES.notNumber };
+    }
+    var value = parseFloat(text);
+    if (!isFinite(value)) {
+      return { error: MESSAGES.notNumber };
+    }
+    if (value < 0 || value >= 12) {
+      return { error: MESSAGES.inchesRange };
+    }
+    return { value: value };
+  }
+
+  // ---------------------------------------------------------------------
+  // Pure validators
+  // ---------------------------------------------------------------------
 
   /**
-   * Validate one raw field value against a rule.
-   * @param {*} raw
-   * @param {{min:number, max:number, integer?:boolean, emptyValue?:number,
-   *          messages:{empty:string, invalid:string, range:string}}} rule
-   * @returns {{value: number|null, error: string|null}}
+   * @param {{heightCm: string, weightKg: string}} input
+   * @returns {{valid: boolean, errors: Object, values?: {heightCm: number, weightKg: number}}}
    */
-  function validateField(raw, rule) {
-    const parsed = parseNumber(raw);
-    if (parsed.status === 'empty') {
-      if (typeof rule.emptyValue === 'number') {
-        return { value: rule.emptyValue, error: null };
-      }
-      return { value: null, error: rule.messages.empty };
+  function validateMetric(input) {
+    var source = input || {};
+    var errors = {};
+
+    var height = parsePositiveDecimalInRange(
+      source.heightCm,
+      MESSAGES.emptyHeightCm,
+      RANGES.cmMin,
+      RANGES.cmMax,
+      MESSAGES.cmRange
+    );
+    var weight = parsePositiveDecimalInRange(
+      source.weightKg,
+      MESSAGES.emptyWeightKg,
+      RANGES.kgMin,
+      RANGES.kgMax,
+      MESSAGES.kgRange
+    );
+
+    if (height.error) {
+      errors['height-cm'] = height.error;
     }
-    if (parsed.status === 'invalid') {
-      return { value: null, error: rule.messages.invalid };
+    if (weight.error) {
+      errors['weight-kg'] = weight.error;
     }
-    if (rule.integer && !Number.isInteger(parsed.value)) {
-      return { value: null, error: rule.messages.range };
+
+    if (Object.keys(errors).length > 0) {
+      return { valid: false, errors: errors };
     }
-    if (parsed.value < rule.min || parsed.value > rule.max) {
-      return { value: null, error: rule.messages.range };
-    }
-    return { value: parsed.value, error: null };
-  }
-
-  /** Convert feet + inches to centimetres (1 in = 2.54 cm exactly). */
-  function feetInchesToCm(feet, inches) {
-    return (feet * INCHES_PER_FOOT + inches) * CM_PER_INCH;
-  }
-
-  /** Convert pounds to kilograms (1 lb = 0.45359237 kg exactly). */
-  function poundsToKg(pounds) {
-    return pounds * KG_PER_POUND;
-  }
-
-  /**
-   * Validate metric inputs.
-   * @param {{heightCm:*, weightKg:*}} raw
-   * @returns {{valid:boolean, errors:Object<string,string>, heightCm:number|null, weightKg:number|null}}
-   */
-  function validateMetric(raw) {
-    const source = raw || {};
-    const errors = {};
-
-    const height = validateField(source.heightCm, {
-      min: LIMITS.heightCm.min,
-      max: LIMITS.heightCm.max,
-      messages: MESSAGES.heightCm
-    });
-    const weight = validateField(source.weightKg, {
-      min: LIMITS.weightKg.min,
-      max: LIMITS.weightKg.max,
-      messages: MESSAGES.weightKg
-    });
-
-    if (height.error) errors.heightCm = height.error;
-    if (weight.error) errors.weightKg = weight.error;
-
-    const valid = Object.keys(errors).length === 0;
     return {
-      valid: valid,
+      valid: true,
       errors: errors,
-      heightCm: valid ? height.value : null,
-      weightKg: valid ? weight.value : null
+      values: { heightCm: height.value, weightKg: weight.value }
     };
   }
 
   /**
-   * Validate imperial inputs and convert them to metric.
-   * Error keys: feet, inches, heightTotal, pounds.
-   * @param {{feet:*, inches:*, pounds:*}} raw
-   * @returns {{valid:boolean, errors:Object<string,string>, heightCm:number|null, weightKg:number|null}}
+   * @param {{feet: string, inches: string, pounds: string}} input
+   * @returns {{valid: boolean, errors: Object, values?: {feet: number, inches: number, pounds: number}}}
    */
-  function validateImperial(raw) {
-    const source = raw || {};
-    const errors = {};
+  function validateImperial(input) {
+    var source = input || {};
+    var errors = {};
 
-    const feet = validateField(source.feet, {
-      min: LIMITS.feet.min,
-      max: LIMITS.feet.max,
-      integer: true,
-      messages: MESSAGES.feet
-    });
-    const inches = validateField(source.inches, {
-      min: LIMITS.inches.min,
-      max: LIMITS.inches.max,
-      emptyValue: 0,
-      messages: MESSAGES.inches
-    });
-    const pounds = validateField(source.pounds, {
-      min: LIMITS.pounds.min,
-      max: LIMITS.pounds.max,
-      messages: MESSAGES.pounds
-    });
+    var feet = parseFeet(source.feet);
+    var inches = parseInches(source.inches);
+    var pounds = parsePositiveDecimalInRange(
+      source.pounds,
+      MESSAGES.emptyPounds,
+      RANGES.lbMin,
+      RANGES.lbMax,
+      MESSAGES.lbRange
+    );
 
-    if (feet.error) errors.feet = feet.error;
-    if (inches.error) errors.inches = inches.error;
+    if (feet.error) {
+      errors['height-ft'] = feet.error;
+    }
+    if (inches.error) {
+      errors['height-in'] = inches.error;
+    }
+    if (pounds.error) {
+      errors['weight-lb'] = pounds.error;
+    }
 
-    let heightCm = null;
     if (!feet.error && !inches.error) {
-      heightCm = feetInchesToCm(feet.value, inches.value);
-      if (heightCm < LIMITS.heightCm.min || heightCm > LIMITS.heightCm.max) {
-        errors.heightTotal = MESSAGES.heightTotal;
-        heightCm = null;
+      var totalInches = feet.value * 12 + inches.value;
+      if (totalInches < RANGES.totalInchesMin || totalInches > RANGES.totalInchesMax) {
+        errors['height-ft'] = MESSAGES.totalHeightRange;
+        errors['height-in'] = MESSAGES.totalHeightRange;
       }
     }
 
-    if (pounds.error) errors.pounds = pounds.error;
-
-    const valid = Object.keys(errors).length === 0;
+    if (Object.keys(errors).length > 0) {
+      return { valid: false, errors: errors };
+    }
     return {
-      valid: valid,
+      valid: true,
       errors: errors,
-      heightCm: valid ? heightCm : null,
-      weightKg: valid ? poundsToKg(pounds.value) : null
+      values: { feet: feet.value, inches: inches.value, pounds: pounds.value }
     };
   }
 
-  /**
-   * BMI = weight (kg) / height (m)^2.
-   * Computed as kg * 10000 / cm^2 to reduce floating-point error.
-   */
-  function calculateBmi(heightCm, weightKg) {
-    if (!(Number.isFinite(heightCm) && heightCm > 0)) {
-      throw new RangeError('Height must be a positive finite number.');
-    }
-    if (!(Number.isFinite(weightKg) && weightKg > 0)) {
-      throw new RangeError('Weight must be a positive finite number.');
-    }
-    return (weightKg * 10000) / (heightCm * heightCm);
-  }
+  // ---------------------------------------------------------------------
+  // Exports
+  // ---------------------------------------------------------------------
 
-  /** Shift a number's decimal point using exponent notation (avoids binary multiplication error). */
-  function shiftDecimal(value, places) {
-    const parts = String(value).split('e');
-    const exponent = (parts.length > 1 ? Number(parts[1]) : 0) + places;
-    return Number(parts[0] + 'e' + exponent);
-  }
-
-  /**
-   * Round half-up (half away from zero) to a number of decimal places,
-   * based on the number's shortest decimal representation.
-   * e.g. roundHalfUp(24.95) === 25, roundHalfUp(1.005, 2) === 1.01
-   */
-  function roundHalfUp(value, decimals) {
-    const places = decimals === undefined ? 1 : decimals;
-    if (!Number.isFinite(value)) {
-      throw new TypeError('roundHalfUp expects a finite number.');
-    }
-    if (!Number.isInteger(places) || places < 0) {
-      throw new RangeError('decimals must be a non-negative integer.');
-    }
-    const sign = value < 0 ? -1 : 1;
-    const shifted = shiftDecimal(Math.abs(value), places);
-    const result = sign * shiftDecimal(Math.round(shifted), -places);
-    return result === 0 ? 0 : result; // normalise -0
-  }
-
-  /** Format a rounded BMI for display, always with one decimal place. */
-  function formatBmi(roundedBmi) {
-    return roundedBmi.toFixed(1);
-  }
-
-  /**
-   * Category key from the displayed (rounded to one decimal) BMI.
-   *   < 18.5 underweight | 18.5–24.9 normal | 25.0–29.9 overweight | >= 30.0 obese
-   */
-  function categorize(displayedBmi) {
-    if (!Number.isFinite(displayedBmi)) {
-      throw new TypeError('categorize expects a finite number.');
-    }
-    if (displayedBmi < 18.5) return 'underweight';
-    if (displayedBmi < 25) return 'normal';
-    if (displayedBmi < 30) return 'overweight';
-    return 'obese';
-  }
-
-  /**
-   * Full calculation pipeline from metric values.
-   * @returns {{bmi:number, roundedBmi:number, displayBmi:string, category:string,
-   *            categoryName:string, advice:string}}
-   */
-  function computeResult(heightCm, weightKg) {
-    const bmi = calculateBmi(heightCm, weightKg);
-    const roundedBmi = roundHalfUp(bmi, 1);
-    const category = categorize(roundedBmi);
-    const info = CATEGORIES[category];
-    return {
-      bmi: bmi,
-      roundedBmi: roundedBmi,
-      displayBmi: formatBmi(roundedBmi),
-      category: category,
-      categoryName: info.name,
-      advice: info.advice
-    };
-  }
-
-  const api = Object.freeze({
-    CM_PER_INCH: CM_PER_INCH,
-    KG_PER_POUND: KG_PER_POUND,
-    LIMITS: LIMITS,
-    MESSAGES: MESSAGES,
-    CATEGORIES: CATEGORIES,
-    parseNumber: parseNumber,
+  var api = {
+    calculateBmiMetric: calculateBmiMetric,
+    calculateBmiImperial: calculateBmiImperial,
+    roundBmi: roundBmi,
+    getBmiCategory: getBmiCategory,
+    categoryKey: categoryKey,
     validateMetric: validateMetric,
-    validateImperial: validateImperial,
-    feetInchesToCm: feetInchesToCm,
-    poundsToKg: poundsToKg,
-    calculateBmi: calculateBmi,
-    roundHalfUp: roundHalfUp,
-    formatBmi: formatBmi,
-    categorize: categorize,
-    computeResult: computeResult
-  });
+    validateImperial: validateImperial
+  };
 
-  // Node.js / CommonJS export for independent verification.
-  if (typeof module === 'object' && module !== null && module.exports) {
+  if (typeof window !== 'undefined') {
+    window.BmiCalculator = api;
+  }
+  if (typeof module !== 'undefined' && module && typeof module === 'object') {
     module.exports = api;
   }
 
-  /* =====================================================================
-   * 2. DOM LAYER (browser only)
-   * ===================================================================== */
+  // ---------------------------------------------------------------------
+  // DOM wiring
+  // ---------------------------------------------------------------------
 
   if (typeof document === 'undefined') {
     return;
   }
 
-  if (root) {
-    root.BMICalculator = api;
+  var METRIC_FIELD_IDS = ['height-cm', 'weight-kg'];
+  var IMPERIAL_FIELD_IDS = ['height-ft', 'height-in', 'weight-lb'];
+  var ALL_FIELD_IDS = METRIC_FIELD_IDS.concat(IMPERIAL_FIELD_IDS);
+
+  function byId(id) {
+    return document.getElementById(id);
   }
 
-  function initDom() {
-    const byId = function (id) { return document.getElementById(id); };
+  function errorElementFor(fieldId) {
+    return byId(fieldId + '-error');
+  }
 
-    const form = byId('bmi-form');
-    const resultEl = byId('result');
-    if (!form || !resultEl) {
+  function clearFieldError(fieldId) {
+    var input = byId(fieldId);
+    var errorEl = errorElementFor(fieldId);
+    if (errorEl) {
+      errorEl.textContent = '';
+    }
+    if (input) {
+      input.removeAttribute('aria-invalid');
+    }
+  }
+
+  function setFieldError(fieldId, message) {
+    var input = byId(fieldId);
+    var errorEl = errorElementFor(fieldId);
+    if (errorEl) {
+      errorEl.textContent = message;
+    }
+    if (input) {
+      input.setAttribute('aria-invalid', 'true');
+    }
+  }
+
+  function clearAllErrors() {
+    ALL_FIELD_IDS.forEach(clearFieldError);
+  }
+
+  function clearAllInputs() {
+    ALL_FIELD_IDS.forEach(function (id) {
+      var input = byId(id);
+      if (input) {
+        input.value = '';
+      }
+    });
+  }
+
+  function hideResult() {
+    var resultEl = byId('result');
+    var contentEl = byId('result-content');
+    var valueEl = byId('bmi-value');
+    var categoryEl = byId('bmi-category');
+
+    if (contentEl) {
+      contentEl.hidden = true;
+    }
+    if (valueEl) {
+      valueEl.textContent = '';
+    }
+    if (categoryEl) {
+      categoryEl.textContent = '';
+    }
+    if (resultEl) {
+      resultEl.removeAttribute('data-category');
+    }
+  }
+
+  function showResult(rounded, category) {
+    var resultEl = byId('result');
+    var contentEl = byId('result-content');
+    var valueEl = byId('bmi-value');
+    var categoryEl = byId('bmi-category');
+    var key = categoryKey(category);
+
+    if (valueEl) {
+      valueEl.textContent = rounded.toFixed(1);
+    }
+    if (categoryEl) {
+      categoryEl.textContent = category;
+    }
+    if (resultEl) {
+      if (key) {
+        resultEl.setAttribute('data-category', key);
+      } else {
+        resultEl.removeAttribute('data-category');
+      }
+    }
+    if (contentEl) {
+      contentEl.hidden = false;
+    }
+  }
+
+  function isMetricMode() {
+    var metricRadio = byId('unit-metric');
+    // Default to metric if the radio is missing for some reason.
+    return metricRadio ? metricRadio.checked : true;
+  }
+
+  function inputValue(id) {
+    var input = byId(id);
+    return input ? input.value : '';
+  }
+
+  function applyUnitVisibility() {
+    var metric = isMetricMode();
+    var metricFields = byId('metric-fields');
+    var imperialFields = byId('imperial-fields');
+    if (metricFields) {
+      metricFields.hidden = !metric;
+    }
+    if (imperialFields) {
+      imperialFields.hidden = metric;
+    }
+  }
+
+  function handleUnitChange() {
+    applyUnitVisibility();
+    clearAllInputs();
+    clearAllErrors();
+    hideResult();
+  }
+
+  function handleSubmit(event) {
+    if (event && typeof event.preventDefault === 'function') {
+      event.preventDefault();
+    }
+
+    var metric = isMetricMode();
+    var fieldIds = metric ? METRIC_FIELD_IDS : IMPERIAL_FIELD_IDS;
+    var result = metric
+      ? validateMetric({
+          heightCm: inputValue('height-cm'),
+          weightKg: inputValue('weight-kg')
+        })
+      : validateImperial({
+          feet: inputValue('height-ft'),
+          inches: inputValue('height-in'),
+          pounds: inputValue('weight-lb')
+        });
+
+    if (!result.valid) {
+      hideResult();
+      var firstInvalid = null;
+      fieldIds.forEach(function (id) {
+        if (Object.prototype.hasOwnProperty.call(result.errors, id)) {
+          setFieldError(id, result.errors[id]);
+          if (!firstInvalid) {
+            firstInvalid = byId(id);
+          }
+        } else {
+          clearFieldError(id);
+        }
+      });
+      if (firstInvalid && typeof firstInvalid.focus === 'function') {
+        firstInvalid.focus();
+      }
       return;
     }
 
-    const unitRadios = Array.prototype.slice.call(form.querySelectorAll('input[name="unit"]'));
+    clearAllErrors();
 
-    const groups = {
-      metric: byId('metric-fields'),
-      imperial: byId('imperial-fields')
-    };
+    var values = result.values;
+    var bmi = metric
+      ? calculateBmiMetric(values.heightCm, values.weightKg)
+      : calculateBmiImperial(values.feet, values.inches, values.pounds);
+    var rounded = roundBmi(bmi);
+    var category = getBmiCategory(rounded);
 
-    const inputs = {
-      heightCm: byId('height-cm'),
-      weightKg: byId('weight-kg'),
-      feet: byId('height-ft'),
-      inches: byId('height-in'),
-      pounds: byId('weight-lb')
-    };
+    showResult(rounded, category);
+  }
 
-    // Insertion order matters: a field's own error is listed before the shared total-height error.
-    const errorEls = {
-      heightCm: byId('height-cm-error'),
-      weightKg: byId('weight-kg-error'),
-      feet: byId('height-ft-error'),
-      inches: byId('height-in-error'),
-      heightTotal: byId('height-imperial-error'),
-      pounds: byId('weight-lb-error')
-    };
-
-    // Which inputs each error message belongs to.
-    const ERROR_TARGETS = {
-      heightCm: ['heightCm'],
-      weightKg: ['weightKg'],
-      feet: ['feet'],
-      inches: ['inches'],
-      heightTotal: ['feet', 'inches'],
-      pounds: ['pounds']
-    };
-
-    const FIELD_ORDER = {
-      metric: ['heightCm', 'weightKg'],
-      imperial: ['feet', 'inches', 'pounds']
-    };
-
-    // Remember each input's baseline aria-describedby (its hint).
-    Object.keys(inputs).forEach(function (key) {
-      const input = inputs[key];
-      input.dataset.baseDescribedby = input.getAttribute('aria-describedby') || '';
-    });
-
-    function getSelectedUnit() {
-      for (let i = 0; i < unitRadios.length; i += 1) {
-        if (unitRadios[i].checked) {
-          return unitRadios[i].value === 'imperial' ? 'imperial' : 'metric';
-        }
-      }
-      return 'metric';
+  function init() {
+    var form = byId('bmi-form');
+    if (!form) {
+      return;
     }
 
-    function renderErrors(errors) {
-      const extraDescribedBy = {};
+    var metricRadio = byId('unit-metric');
+    var imperialRadio = byId('unit-imperial');
 
-      Object.keys(errorEls).forEach(function (key) {
-        const el = errorEls[key];
-        const message = errors[key];
-        if (message) {
-          const prefix = document.createElement('span');
-          prefix.className = 'visually-hidden';
-          prefix.textContent = 'Error: ';
-          el.replaceChildren(prefix, document.createTextNode(message));
-          el.hidden = false;
-          ERROR_TARGETS[key].forEach(function (target) {
-            (extraDescribedBy[target] = extraDescribedBy[target] || []).push(el.id);
-          });
-        } else {
-          el.replaceChildren();
-          el.hidden = true;
-        }
-      });
-
-      Object.keys(inputs).forEach(function (key) {
-        const input = inputs[key];
-        const extra = extraDescribedBy[key] || [];
-        const ids = [input.dataset.baseDescribedby].concat(extra).filter(Boolean).join(' ');
-        if (ids) {
-          input.setAttribute('aria-describedby', ids);
-        } else {
-          input.removeAttribute('aria-describedby');
-        }
-        if (extra.length > 0) {
-          input.setAttribute('aria-invalid', 'true');
-        } else {
-          input.removeAttribute('aria-invalid');
-        }
-      });
+    if (metricRadio) {
+      metricRadio.addEventListener('change', handleUnitChange);
+    }
+    if (imperialRadio) {
+      imperialRadio.addEventListener('change', handleUnitChange);
     }
 
-    function clearErrors() {
-      renderErrors({});
-    }
+    form.addEventListener('submit', handleSubmit);
 
-    function clearResult() {
-      resultEl.replaceChildren();
-    }
-
-    function createTextElement(tag, className, text) {
-      const el = document.createElement(tag);
-      if (className) el.className = className;
-      el.textContent = text;
-      return el;
-    }
-
-    function renderResult(result) {
-      const card = document.createElement('div');
-      card.className = 'result-card category-' + result.category;
-
-      card.appendChild(createTextElement('h2', 'result-heading', 'Your result'));
-
-      const bmiLine = document.createElement('p');
-      bmiLine.className = 'result-bmi';
-      bmiLine.appendChild(createTextElement('span', 'result-bmi-label', 'BMI'));
-      bmiLine.appendChild(document.createTextNode(' '));
-      bmiLine.appendChild(createTextElement('span', 'result-bmi-value', result.displayBmi));
-      card.appendChild(bmiLine);
-
-      const categoryLine = document.createElement('p');
-      categoryLine.className = 'result-category';
-      categoryLine.appendChild(createTextElement('span', 'category-label', 'Category:'));
-      categoryLine.appendChild(document.createTextNode(' '));
-      categoryLine.appendChild(createTextElement('strong', 'category-badge', result.categoryName));
-      card.appendChild(categoryLine);
-
-      card.appendChild(createTextElement('p', 'result-advice', result.advice));
-
-      // Fresh nodes each time so screen readers announce repeated calculations.
-      resultEl.replaceChildren(card);
-    }
-
-    function focusFirstInvalid(unit) {
-      const order = FIELD_ORDER[unit];
-      for (let i = 0; i < order.length; i += 1) {
-        const input = inputs[order[i]];
-        if (input.getAttribute('aria-invalid') === 'true') {
-          input.focus();
-          return;
-        }
-      }
-    }
-
-    function handleCalculate() {
-      const unit = getSelectedUnit();
-      clearResult();
-
-      const validation = unit === 'imperial'
-        ? validateImperial({
-          feet: inputs.feet.value,
-          inches: inputs.inches.value,
-          pounds: inputs.pounds.value
-        })
-        : validateMetric({
-          heightCm: inputs.heightCm.value,
-          weightKg: inputs.weightKg.value
-        });
-
-      renderErrors(validation.errors);
-
-      if (!validation.valid) {
-        focusFirstInvalid(unit);
-        return;
-      }
-
-      renderResult(computeResult(validation.heightCm, validation.weightKg));
-    }
-
-    function applyUnit(unit) {
-      groups.metric.hidden = unit !== 'metric';
-      groups.imperial.hidden = unit !== 'imperial';
-      Object.keys(inputs).forEach(function (key) {
-        inputs[key].value = '';
-      });
-      clearErrors();
-      clearResult();
-    }
-
-    form.addEventListener('submit', function (event) {
-      event.preventDefault();
-      handleCalculate();
-    });
-
-    // Enter on a radio button also triggers Calculate (text inputs use implicit submission).
-    form.addEventListener('keydown', function (event) {
-      const target = event.target;
-      if (event.key === 'Enter' && target && target.type === 'radio') {
-        event.preventDefault();
-        handleCalculate();
-      }
-    });
-
-    unitRadios.forEach(function (radio) {
-      radio.addEventListener('change', function () {
-        applyUnit(getSelectedUnit());
-      });
-    });
-
-    // If the page is restored from the back/forward cache, clear any restored entries.
-    window.addEventListener('pageshow', function (event) {
-      if (event.persisted) {
-        applyUnit(getSelectedUnit());
-      }
-    });
-
-    applyUnit(getSelectedUnit());
+    // Sync visibility with the current radio state (e.g. after back/forward
+    // navigation restores form state) and start with a clean result area.
+    applyUnitVisibility();
+    hideResult();
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initDom);
+    document.addEventListener('DOMContentLoaded', init);
   } else {
-    initDom();
+    init();
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this);
+})();
